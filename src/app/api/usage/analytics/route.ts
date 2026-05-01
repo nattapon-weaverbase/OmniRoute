@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+
+import { PROVIDER_ID_TO_ALIAS } from "@omniroute/open-sse/config/providerModels";
+
 import { getDbInstance } from "@/lib/db/core";
 
 function getRangeStartIso(range: string): string | null {
@@ -32,7 +35,7 @@ function getRangeStartIso(range: string): string | null {
 
 function shortModelName(model: string | null): string {
   if (!model) return "-";
-  const parts = model.split(/[/:-]/);
+  const parts = model.split("/");
   return parts[parts.length - 1] || model;
 }
 
@@ -71,17 +74,30 @@ function resolveModelPricing(
   model: string,
   normalizeModelName: (model: string) => string
 ): Record<string, unknown> | null {
-  const providerPricing = pricingByProvider[provider];
-  if (!providerPricing) return null;
-
   const normalizedModel = normalizeModelName(model);
   const shortModel = shortModelName(model);
-  return (
-    providerPricing[model] ||
-    providerPricing[normalizedModel] ||
-    providerPricing[shortModel] ||
-    null
-  );
+  const providerCandidates = new Set<string>([provider]);
+
+  const alias = PROVIDER_ID_TO_ALIAS[provider];
+  if (alias) providerCandidates.add(alias);
+
+  const normalizedProvider = provider.replace(/-cn$/, "");
+  if (normalizedProvider && normalizedProvider !== provider) {
+    providerCandidates.add(normalizedProvider);
+    const normalizedAlias = PROVIDER_ID_TO_ALIAS[normalizedProvider];
+    if (normalizedAlias) providerCandidates.add(normalizedAlias);
+  }
+
+  for (const providerKey of providerCandidates) {
+    const providerPricing = pricingByProvider[providerKey];
+    if (!providerPricing) continue;
+
+    const pricing =
+      providerPricing[model] || providerPricing[normalizedModel] || providerPricing[shortModel];
+    if (pricing) return pricing;
+  }
+
+  return null;
 }
 
 function computeUsageRowCost(

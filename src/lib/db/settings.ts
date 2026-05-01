@@ -231,15 +231,22 @@ export async function getPricingWithSources(): Promise<{
 }
 
 export async function getPricingForModel(provider: string, model: string) {
+  // Pricing map keys are lowercase provider ids; usage_history / call paths may carry
+  // mixed-case strings — normalize so cost analytics and quotas still resolve rates.
+  const p =
+    typeof provider === "string" && provider.trim().length > 0 ? provider.trim().toLowerCase() : "";
+  const m = typeof model === "string" && model.trim().length > 0 ? model.trim() : "";
+  if (!p || !m) return null;
+
   const pricing = await getPricing();
-  if (pricing[provider]?.[model]) return pricing[provider][model];
+  if (pricing[p]?.[m]) return pricing[p][m];
 
   const { PROVIDER_ID_TO_ALIAS } = await import("@omniroute/open-sse/config/providerModels");
-  const alias = PROVIDER_ID_TO_ALIAS[provider];
-  if (alias && pricing[alias]) return pricing[alias][model] || null;
+  const alias = PROVIDER_ID_TO_ALIAS[p];
+  if (alias && pricing[alias]) return pricing[alias][m] || null;
 
-  const np = provider?.replace(/-cn$/, "");
-  if (np && np !== provider && pricing[np]) return pricing[np][model] || null;
+  const np = p.replace(/-cn$/, "");
+  if (np && np !== p && pricing[np]) return pricing[np][m] || null;
 
   return null;
 }

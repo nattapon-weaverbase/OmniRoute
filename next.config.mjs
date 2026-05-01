@@ -8,6 +8,9 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    proxyClientMaxBodySize: 100 * 1048576, // 100MB in bytes
+  },
   distDir,
   // Turbopack config: redirect native modules to stubs at build time
   turbopack: {

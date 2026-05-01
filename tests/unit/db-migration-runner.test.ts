@@ -128,6 +128,14 @@ test("migration infrastructure avoids cwd-based repo tracing fallbacks", () => {
   assert.match(runnerSource, /fileURLToPath\(import\.meta\.url\)/);
 });
 
+test("dataPaths has no sibling dataPaths.js (webpack would shadow TS and break named imports)", () => {
+  assert.equal(
+    fs.existsSync(path.resolve("src/lib/dataPaths.js")),
+    false,
+    "Remove stray src/lib/dataPaths.js — it can resolve before dataPaths.ts and break instrumentation"
+  );
+});
+
 test("runMigrations applies pending files sequentially in version order", serial, async () => {
   const runner = await importFresh("src/lib/db/migrationRunner.ts");
   const db = createDb();

@@ -124,10 +124,47 @@ test("GET /api/usage/analytics includes byModel array with cost calculations", a
   assert.equal(response.status, 200);
   assert.ok(Array.isArray(body.byModel));
   assert.ok(body.byModel.length > 0);
-  const gptEntry = body.byModel.find((m) => m.model === "4o" && m.provider === "openai");
+  const gptEntry = body.byModel.find((m) => m.model === "gpt-4o" && m.provider === "openai");
   assert.ok(gptEntry);
   assert.ok(typeof gptEntry.cost === "number");
   assert.ok(gptEntry.cost > 0);
+});
+
+test("GET /api/usage/analytics uses configured pricing from provider aliases", async () => {
+  await localDb.updatePricing({
+    cx: { "gpt-alias-test": { input: 2, output: 8 } },
+  });
+
+  const db = core.getDbInstance();
+  db.prepare(
+    `INSERT INTO usage_history (provider, model, connection_id, api_key_id, api_key_name, tokens_input, tokens_output, success, latency_ms, timestamp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    "codex",
+    "gpt-alias-test",
+    "codex-conn",
+    "codex-key",
+    "Codex Key",
+    1_000_000,
+    500_000,
+    1,
+    200,
+    new Date().toISOString()
+  );
+
+  const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assertClose(body.summary.totalCost, 6);
+  assertClose(
+    body.dailyTrend.reduce((sum, row) => sum + row.cost, 0),
+    6
+  );
+  assertClose(body.byModel.find((row) => row.provider === "codex")?.cost, 6);
+  assertClose(body.byProvider.find((row) => row.provider === "codex")?.cost, 6);
+  assertClose(body.byAccount.find((row) => row.account === "codex-conn")?.cost, 6);
+  assertClose(body.byApiKey.find((row) => row.apiKeyId === "codex-key")?.cost, 6);
 });
 
 test("GET /api/usage/analytics filters by range parameter", async () => {
